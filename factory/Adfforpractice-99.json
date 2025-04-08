@@ -1,0 +1,9 @@
+{
+	"name": "Adfforpractice-99",
+	"location": "northeurope",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "375c498b-8b68-4f9b-8642-5c15c17ed946",
+		"tenantId": "6691bb17-8624-4b2d-98cf-661eb9368f45"
+	}
+}
