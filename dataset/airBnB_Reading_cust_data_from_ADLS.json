@@ -1,0 +1,23 @@
+{
+	"name": "airBnB_Reading_cust_data_from_ADLS",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "ADLS_for_cust_data",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "DelimitedText",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"folderPath": "cust_raw_data",
+				"fileSystem": "airbnb"
+			},
+			"columnDelimiter": ",",
+			"escapeChar": "\\",
+			"firstRowAsHeader": true,
+			"quoteChar": "\""
+		},
+		"schema": []
+	}
+}

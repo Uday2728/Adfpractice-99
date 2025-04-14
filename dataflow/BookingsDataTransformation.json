@@ -1,0 +1,85 @@
+{
+	"name": "BookingsDataTransformation",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "airBnB_CDC_data_from_CosmosDB",
+						"type": "DatasetReference"
+					},
+					"name": "BookingData"
+				},
+				{
+					"dataset": {
+						"referenceName": "AirBnb_fact_new",
+						"type": "DatasetReference"
+					},
+					"name": "SynapseForLookup"
+				}
+			],
+			"sinks": [],
+			"transformations": [
+				{
+					"name": "conditonalSplit"
+				},
+				{
+					"name": "derivedColumns"
+				},
+				{
+					"name": "lookupInSynapse"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          check_out_date as date,",
+				"          customer_id as short,",
+				"          timestamp as timestamp,",
+				"          owner_id as string,",
+				"          check_in_date as date,",
+				"          property_id as string,",
+				"          amount as double,",
+				"          booking_id as string,",
+				"          currency as string,",
+				"          property_location as (city as string, country as string),",
+				"          booking_date as timestamp",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     enableChangeFeed: true,",
+				"     changeFeedStartFromTheBeginning: false,",
+				"     format: 'document') ~> BookingData",
+				"source(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     query: 'select * from airbnb.bookings_fact',",
+				"     format: 'query',",
+				"     staged: true) ~> SynapseForLookup",
+				"BookingData split(check_out_date<check_in_date,",
+				"     disjoint: false) ~> conditonalSplit@(BadRecords, AcceptedRecords)",
+				"conditonalSplit@AcceptedRecords derive(stay_duration = (toTimestamp(check_out_date)-toTimestamp(check_in_date))/86400000,",
+				"          booking_year = year(booking_date),",
+				"          booking_month = month(booking_date),",
+				"          full_address = concat( property_location.city, ' ', property_location.country),",
+				"          city = property_location.city,",
+				"          country = property_location.country,",
+				"          booking_id = booking_id,",
+				"          booking_date = booking_date,",
+				"          check_out_date = check_out_date,",
+				"          customer_id = customer_id,",
+				"          timestamp = timestamp,",
+				"          owner_id = owner_id,",
+				"          check_in_date = check_in_date,",
+				"          property_id = property_id,",
+				"          amount = amount,",
+				"          currency = currency) ~> derivedColumns",
+				"derivedColumns, SynapseForLookup lookup(derivedColumns@customer_id == ERROR_FUNCTION(''),",
+				"     multiple: false,",
+				"     pickup: 'first',",
+				"     asc(ERROR_FUNCTION(''), true),",
+				"     broadcast: 'auto')~> lookupInSynapse"
+			]
+		}
+	}
+}
