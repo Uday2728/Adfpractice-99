@@ -2,6 +2,12 @@
 	"name": "pipeline1",
 	"properties": {
 		"activities": [
+			
+ 
+{
+	"name": "pipeline1",
+	"properties": {
+		"activities": [
 			{
 				"name": "good branch Wait activity",
 				"type": "Wait",
@@ -9,6 +15,20 @@
 				"userProperties": [],
 				"typeProperties": {
 					"waitTimeInSeconds": 1
+				}
+			}
+		],
+		"annotations": []
+	}
+}
+,
+			{
+				"name": "conflict branch Wait activity 2",
+				"type": "Wait",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"waitTimeInSeconds": 3
 				}
 			}
 		],
