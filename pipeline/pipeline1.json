@@ -3,12 +3,12 @@
 	"properties": {
 		"activities": [
 			{
-				"name": "Wait",
+				"name": "good branch Wait activity",
 				"type": "Wait",
 				"dependsOn": [],
 				"userProperties": [],
 				"typeProperties": {
-					"waitTimeInSeconds": 2
+					"waitTimeInSeconds": 1
 				}
 			}
 		],
