@@ -1,0 +1,12 @@
+{
+	"name": "AirBnb_fact_new",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "SynapseLinkedNew",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "AzureSqlDWTable",
+		"schema": []
+	}
+}

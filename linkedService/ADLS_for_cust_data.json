@@ -1,0 +1,10 @@
+{
+	"name": "ADLS_for_cust_data",
+	"properties": {
+		"annotations": [],
+		"type": "AzureBlobFS",
+		"typeProperties": {
+			"url": "https://airbnbdatacust.dfs.core.windows.net/"
+		}
+	}
+}

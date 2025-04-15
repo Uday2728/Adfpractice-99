@@ -5,19 +5,11 @@
 		"typeProperties": {
 			"sources": [
 				{
-					"dataset": {
-						"referenceName": "ds_sales_data",
-						"type": "DatasetReference"
-					},
 					"name": "salesDataTransform"
 				}
 			],
 			"sinks": [
 				{
-					"dataset": {
-						"referenceName": "ds_sales_archive",
-						"type": "DatasetReference"
-					},
 					"name": "sink1"
 				}
 			],
@@ -44,19 +36,17 @@
 				"     ),",
 				"     allowSchemaDrift: true,",
 				"     validateSchema: false,",
-				"     inferDriftedColumnTypes: true,",
-				"     ignoreNoFilesFound: false) ~> salesDataTransform",
+				"     inferDriftedColumnTypes: true) ~> salesDataTransform",
 				"salesDataTransform filter(SALES>=2000) ~> filter",
 				"filter aggregate(groupBy({YEAR_ID } = YEAR_ID,",
 				"          MONTH_ID),",
 				"     totalSales = sum(SALES)) ~> aggregate1",
 				"aggregate1 sink(allowSchemaDrift: true,",
 				"     validateSchema: false,",
-				"     umask: 0022,",
-				"     preCommands: [],",
-				"     postCommands: [],",
 				"     skipDuplicateMapInputs: true,",
-				"     skipDuplicateMapOutputs: true) ~> sink1"
+				"     skipDuplicateMapOutputs: true,",
+				"     preCommands: [],",
+				"     postCommands: []) ~> sink1"
 			]
 		}
 	}

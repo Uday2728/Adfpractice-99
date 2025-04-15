@@ -1,0 +1,23 @@
+{
+	"name": "AirBnb_Cust_Archive",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "ADLS_for_cust_data",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "DelimitedText",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"folderPath": "cust_archive",
+				"fileSystem": "airbnb"
+			},
+			"columnDelimiter": ",",
+			"escapeChar": "\\",
+			"firstRowAsHeader": true,
+			"quoteChar": "\""
+		},
+		"schema": []
+	}
+}
