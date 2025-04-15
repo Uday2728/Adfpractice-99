@@ -23,7 +23,8 @@
 						"linkedService": {
 							"referenceName": "ADLS_for_cust_data",
 							"type": "LinkedServiceReference"
-						}
+						},
+						"folderPath": "airbnbstage"
 					},
 					"compute": {
 						"coreCount": 8,
