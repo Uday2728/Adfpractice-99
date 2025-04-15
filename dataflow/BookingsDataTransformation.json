@@ -13,7 +13,7 @@
 				},
 				{
 					"dataset": {
-						"referenceName": "AirBnb_fact_new",
+						"referenceName": "AirBnB_cust_fact_Synapse",
 						"type": "DatasetReference"
 					},
 					"name": "SynapseForLookup"
@@ -88,9 +88,9 @@
 				"     ),",
 				"     allowSchemaDrift: true,",
 				"     validateSchema: false,",
+				"     limit: 100,",
 				"     isolationLevel: 'READ_UNCOMMITTED',",
-				"     query: 'select * from airbnb.bookings_fact',",
-				"     format: 'query',",
+				"     format: 'table',",
 				"     staged: true) ~> SynapseForLookup",
 				"BookingData split(check_out_date<check_in_date,",
 				"     disjoint: false) ~> conditonalSplit@(BadRecords, AcceptedRecords)",
