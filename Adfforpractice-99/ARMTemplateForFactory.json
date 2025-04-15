@@ -1,0 +1,1052 @@
+{
+	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"factoryName": {
+			"type": "string",
+			"metadata": "Data Factory name",
+			"defaultValue": "Adfforpractice-99"
+		},
+		"AzureSynapseAnalyticsForAirBnB_password": {
+			"type": "secureString",
+			"metadata": "Secure string for 'password' of 'AzureSynapseAnalyticsForAirBnB'"
+		},
+		"CosmosDbNoSql1_connectionString": {
+			"type": "secureString",
+			"metadata": "Secure string for 'connectionString' of 'CosmosDbNoSql1'"
+		},
+		"ADLS_for_cust_data_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "https://airbnbdatacust.dfs.core.windows.net/"
+		},
+		"AzureSynapseAnalyticsForAirBnB_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "synapsewsforpractice.sql.azuresynapse.net"
+		},
+		"AzureSynapseAnalyticsForAirBnB_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "airBnBDWH"
+		},
+		"AzureSynapseAnalyticsForAirBnB_properties_typeProperties_userName": {
+			"type": "string",
+			"defaultValue": "sqladminuser"
+		},
+		"SynapseLinkedNew_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "synapsewsforpractice.sql.azuresynapse.net"
+		},
+		"SynapseLinkedNew_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "airBnBDWH"
+		}
+	},
+	"variables": {
+		"factoryId": "[concat('Microsoft.DataFactory/factories/', parameters('factoryName'))]"
+	},
+	"resources": [
+		{
+			"name": "[concat(parameters('factoryName'), '/AirBnBCDCPipeline')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "Dim_load",
+						"type": "ExecutePipeline",
+						"dependsOn": [],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "AirBnB_Customer_Dim",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {}
+						}
+					},
+					{
+						"name": "Fact_load",
+						"type": "ExecutePipeline",
+						"dependsOn": [
+							{
+								"activity": "Dim_load",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"pipeline": {
+								"referenceName": "AirBnB_Bookings_fact",
+								"type": "PipelineReference"
+							},
+							"waitOnCompletion": true,
+							"parameters": {}
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/pipelines/AirBnB_Customer_Dim')]",
+				"[concat(variables('factoryId'), '/pipelines/AirBnB_Bookings_fact')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/AirBnB_Bookings_fact')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "Data flow",
+						"type": "ExecuteDataFlow",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"dataflow": {
+								"referenceName": "BookingsDataTransformation",
+								"type": "DataFlowReference",
+								"parameters": {},
+								"datasetParameters": {
+									"BookingData": {},
+									"SynapseForLookup": {},
+									"SynapseFactSink": {}
+								}
+							},
+							"staging": {
+								"linkedService": {
+									"referenceName": "ADLS_for_cust_data",
+									"type": "LinkedServiceReference"
+								},
+								"folderPath": "airbnbstage"
+							},
+							"compute": {
+								"coreCount": 8,
+								"computeType": "General"
+							},
+							"traceLevel": "Fine",
+							"continuationSettings": {
+								"customizedCheckpointKey": "4036f86e-5fb2-4243-90a0-4df138434821"
+							}
+						}
+					},
+					{
+						"name": "Stored procedure1",
+						"type": "SqlServerStoredProcedure",
+						"dependsOn": [
+							{
+								"activity": "Data flow",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"storedProcedureName": "[[airbnb].[BookingAggregation]"
+						},
+						"linkedServiceName": {
+							"referenceName": "AzureSynapseAnalyticsForAirBnB",
+							"type": "LinkedServiceReference"
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/dataflows/BookingsDataTransformation')]",
+				"[concat(variables('factoryId'), '/linkedServices/ADLS_for_cust_data')]",
+				"[concat(variables('factoryId'), '/linkedServices/AzureSynapseAnalyticsForAirBnB')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/AirBnB_Customer_Dim')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "Get Metadata of Cust Files",
+						"type": "GetMetadata",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"dataset": {
+								"referenceName": "airBnB_Reading_cust_data_from_ADLS",
+								"type": "DatasetReference",
+								"parameters": {}
+							},
+							"fieldList": [
+								"childItems"
+							],
+							"storeSettings": {
+								"type": "AzureBlobFSReadSettings",
+								"recursive": true,
+								"enablePartitionDiscovery": false
+							},
+							"formatSettings": {
+								"type": "DelimitedTextReadSettings"
+							}
+						}
+					},
+					{
+						"name": "ForEach1",
+						"type": "ForEach",
+						"dependsOn": [
+							{
+								"activity": "Get Metadata of Cust Files",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"items": {
+								"value": "@activity('Get Metadata of Cust Files').output.childItems",
+								"type": "Expression"
+							},
+							"isSequential": true,
+							"activities": [
+								{
+									"name": "Set variable",
+									"type": "SetVariable",
+									"dependsOn": [],
+									"policy": {
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"variableName": "fileName",
+										"value": {
+											"value": "@item().name",
+											"type": "Expression"
+										}
+									}
+								},
+								{
+									"name": "upsert",
+									"type": "Copy",
+									"dependsOn": [
+										{
+											"activity": "Set variable",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"timeout": "0.12:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"source": {
+											"type": "DelimitedTextSource",
+											"storeSettings": {
+												"type": "AzureBlobFSReadSettings",
+												"recursive": true,
+												"wildcardFolderPath": "cust_raw_data",
+												"wildcardFileName": {
+													"value": "@item().name",
+													"type": "Expression"
+												},
+												"enablePartitionDiscovery": false
+											},
+											"formatSettings": {
+												"type": "DelimitedTextReadSettings"
+											}
+										},
+										"sink": {
+											"type": "SqlDWSink",
+											"writeBehavior": "Upsert",
+											"upsertSettings": {
+												"keys": [
+													"customer_id"
+												],
+												"interimSchemaName": ""
+											},
+											"sqlWriterUseTableLock": false,
+											"tableOption": "autoCreate",
+											"disableMetricsCollection": false
+										},
+										"enableStaging": false,
+										"translator": {
+											"type": "TabularTranslator",
+											"typeConversion": true,
+											"typeConversionSettings": {
+												"allowDataTruncation": true,
+												"treatBooleanAsNumber": false
+											}
+										}
+									},
+									"inputs": [
+										{
+											"referenceName": "airBnB_Reading_cust_data_from_ADLS",
+											"type": "DatasetReference",
+											"parameters": {}
+										}
+									],
+									"outputs": [
+										{
+											"referenceName": "AirBnB_cust_dim_Synapse",
+											"type": "DatasetReference",
+											"parameters": {}
+										}
+									]
+								},
+								{
+									"name": "copyToArchive",
+									"type": "Copy",
+									"dependsOn": [
+										{
+											"activity": "upsert",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"timeout": "0.12:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"source": {
+											"type": "DelimitedTextSource",
+											"storeSettings": {
+												"type": "AzureBlobFSReadSettings",
+												"recursive": true,
+												"wildcardFolderPath": "cust_raw_data",
+												"wildcardFileName": {
+													"value": "@item().name",
+													"type": "Expression"
+												},
+												"enablePartitionDiscovery": false
+											},
+											"formatSettings": {
+												"type": "DelimitedTextReadSettings"
+											}
+										},
+										"sink": {
+											"type": "DelimitedTextSink",
+											"storeSettings": {
+												"type": "AzureBlobFSWriteSettings",
+												"copyBehavior": "FlattenHierarchy"
+											},
+											"formatSettings": {
+												"type": "DelimitedTextWriteSettings",
+												"quoteAllText": true,
+												"fileExtension": ".csv"
+											}
+										},
+										"enableStaging": false,
+										"translator": {
+											"type": "TabularTranslator",
+											"typeConversion": true,
+											"typeConversionSettings": {
+												"allowDataTruncation": true,
+												"treatBooleanAsNumber": false
+											}
+										}
+									},
+									"inputs": [
+										{
+											"referenceName": "airBnB_Reading_cust_data_from_ADLS",
+											"type": "DatasetReference",
+											"parameters": {}
+										}
+									],
+									"outputs": [
+										{
+											"referenceName": "AirBnb_Cust_Archive",
+											"type": "DatasetReference",
+											"parameters": {}
+										}
+									]
+								},
+								{
+									"name": "Delete Source",
+									"type": "Delete",
+									"dependsOn": [
+										{
+											"activity": "copyToArchive",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"timeout": "0.12:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"dataset": {
+											"referenceName": "airBnB_Reading_cust_data_from_ADLS",
+											"type": "DatasetReference",
+											"parameters": {}
+										},
+										"logStorageSettings": {
+											"linkedServiceName": {
+												"referenceName": "ADLS_for_cust_data",
+												"type": "LinkedServiceReference"
+											}
+										},
+										"enableLogging": true,
+										"storeSettings": {
+											"type": "AzureBlobFSReadSettings",
+											"recursive": true,
+											"wildcardFileName": {
+												"value": "@item().name",
+												"type": "Expression"
+											},
+											"enablePartitionDiscovery": false
+										}
+									}
+								}
+							]
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"variables": {
+					"fileName": {
+						"type": "String"
+					}
+				},
+				"annotations": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/airBnB_Reading_cust_data_from_ADLS')]",
+				"[concat(variables('factoryId'), '/datasets/AirBnB_cust_dim_Synapse')]",
+				"[concat(variables('factoryId'), '/datasets/AirBnb_Cust_Archive')]",
+				"[concat(variables('factoryId'), '/linkedServices/ADLS_for_cust_data')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/AirBnB_cust_dim_Synapse')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "SynapseLinkedNew",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "AzureSqlDWTable",
+				"schema": [
+					{
+						"name": "customer_id",
+						"type": "int",
+						"precision": 10
+					},
+					{
+						"name": "first_name",
+						"type": "nvarchar"
+					},
+					{
+						"name": "last_name",
+						"type": "nvarchar"
+					},
+					{
+						"name": "email",
+						"type": "nvarchar"
+					},
+					{
+						"name": "phone_number",
+						"type": "nvarchar"
+					},
+					{
+						"name": "address",
+						"type": "nvarchar"
+					},
+					{
+						"name": "city",
+						"type": "nvarchar"
+					},
+					{
+						"name": "state",
+						"type": "nvarchar"
+					},
+					{
+						"name": "country",
+						"type": "nvarchar"
+					},
+					{
+						"name": "zip_code",
+						"type": "nvarchar"
+					},
+					{
+						"name": "signup_date",
+						"type": "date"
+					},
+					{
+						"name": "last_login",
+						"type": "datetime",
+						"precision": 23,
+						"scale": 3
+					},
+					{
+						"name": "total_bookings",
+						"type": "int",
+						"precision": 10
+					},
+					{
+						"name": "total_spent",
+						"type": "decimal",
+						"precision": 10,
+						"scale": 2
+					},
+					{
+						"name": "preferred_language",
+						"type": "nvarchar"
+					},
+					{
+						"name": "referral_code",
+						"type": "nvarchar"
+					},
+					{
+						"name": "account_status",
+						"type": "nvarchar"
+					}
+				],
+				"typeProperties": {
+					"schema": "airbnb",
+					"table": "customer_dim"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/SynapseLinkedNew')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/AirBnB_cust_fact_Synapse')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "SynapseLinkedNew",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "AzureSqlDWTable",
+				"schema": [
+					{
+						"name": "booking_id",
+						"type": "nvarchar"
+					},
+					{
+						"name": "property_id",
+						"type": "nvarchar"
+					},
+					{
+						"name": "customer_id",
+						"type": "int",
+						"precision": 10
+					},
+					{
+						"name": "owner_id",
+						"type": "nvarchar"
+					},
+					{
+						"name": "check_in_date",
+						"type": "date"
+					},
+					{
+						"name": "check_out_date",
+						"type": "date"
+					},
+					{
+						"name": "booking_date",
+						"type": "datetime",
+						"precision": 23,
+						"scale": 3
+					},
+					{
+						"name": "amount",
+						"type": "float",
+						"precision": 15
+					},
+					{
+						"name": "currency",
+						"type": "nvarchar"
+					},
+					{
+						"name": "city",
+						"type": "nvarchar"
+					},
+					{
+						"name": "country",
+						"type": "nvarchar"
+					},
+					{
+						"name": "full_address",
+						"type": "nvarchar"
+					},
+					{
+						"name": "stay_duration",
+						"type": "bigint",
+						"precision": 19
+					},
+					{
+						"name": "booking_year",
+						"type": "int",
+						"precision": 10
+					},
+					{
+						"name": "booking_month",
+						"type": "int",
+						"precision": 10
+					},
+					{
+						"name": "timestamp",
+						"type": "datetime",
+						"precision": 23,
+						"scale": 3
+					}
+				],
+				"typeProperties": {
+					"schema": "airbnb",
+					"table": "bookings_fact"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/SynapseLinkedNew')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/AirBnb_Cust_Archive')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "ADLS_for_cust_data",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": "cust_archive",
+						"fileSystem": "airbnb"
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/ADLS_for_cust_data')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/AirBnb_fact_new')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "SynapseLinkedNew",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "AzureSqlDWTable",
+				"schema": [],
+				"typeProperties": {}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/SynapseLinkedNew')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/airBnB_CDC_data_from_CosmosDB')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "CosmosDbNoSql1",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "CosmosDbSqlApiCollection",
+				"schema": {
+					"type": "object",
+					"properties": {
+						"booking_id": {
+							"type": "string"
+						},
+						"property_id": {
+							"type": "string"
+						},
+						"customer_id": {
+							"type": "integer"
+						},
+						"owner_id": {
+							"type": "string"
+						},
+						"check_in_date": {
+							"type": "string"
+						},
+						"check_out_date": {
+							"type": "string"
+						},
+						"booking_date": {
+							"type": "string"
+						},
+						"amount": {
+							"type": "number"
+						},
+						"currency": {
+							"type": "string"
+						},
+						"property_location": {
+							"type": "object",
+							"properties": {
+								"city": {
+									"type": "string"
+								},
+								"country": {
+									"type": "string"
+								}
+							}
+						},
+						"timestamp": {
+							"type": "string"
+						}
+					}
+				},
+				"typeProperties": {
+					"collectionName": "bookings"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/CosmosDbNoSql1')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/airBnB_Reading_cust_data_from_ADLS')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "ADLS_for_cust_data",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": "cust_raw_data",
+						"fileSystem": "airbnb"
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/ADLS_for_cust_data')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/ADLS_for_cust_data')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "AzureBlobFS",
+				"typeProperties": {
+					"url": "[parameters('ADLS_for_cust_data_properties_typeProperties_url')]"
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/AzureSynapseAnalyticsForAirBnB')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "AzureSqlDW",
+				"typeProperties": {
+					"server": "[parameters('AzureSynapseAnalyticsForAirBnB_properties_typeProperties_server')]",
+					"database": "[parameters('AzureSynapseAnalyticsForAirBnB_properties_typeProperties_database')]",
+					"encrypt": "mandatory",
+					"trustServerCertificate": true,
+					"authenticationType": "SQL",
+					"userName": "[parameters('AzureSynapseAnalyticsForAirBnB_properties_typeProperties_userName')]",
+					"password": {
+						"type": "SecureString",
+						"value": "[parameters('AzureSynapseAnalyticsForAirBnB_password')]"
+					}
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/CosmosDbNoSql1')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "CosmosDb",
+				"typeProperties": {
+					"connectionString": "[parameters('CosmosDbNoSql1_connectionString')]"
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/SynapseLinkedNew')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "AzureSqlDW",
+				"typeProperties": {
+					"server": "[parameters('SynapseLinkedNew_properties_typeProperties_server')]",
+					"database": "[parameters('SynapseLinkedNew_properties_typeProperties_database')]",
+					"encrypt": "mandatory",
+					"trustServerCertificate": true,
+					"authenticationType": "SystemAssignedManagedIdentity"
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/BookingsDataTransformation')]",
+			"type": "Microsoft.DataFactory/factories/dataflows",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"type": "MappingDataFlow",
+				"typeProperties": {
+					"sources": [
+						{
+							"dataset": {
+								"referenceName": "airBnB_CDC_data_from_CosmosDB",
+								"type": "DatasetReference"
+							},
+							"name": "BookingData"
+						},
+						{
+							"dataset": {
+								"referenceName": "AirBnb_fact_new",
+								"type": "DatasetReference"
+							},
+							"name": "SynapseForLookup"
+						}
+					],
+					"sinks": [
+						{
+							"dataset": {
+								"referenceName": "AirBnB_cust_fact_Synapse",
+								"type": "DatasetReference"
+							},
+							"name": "SynapseFactSink",
+							"rejectedDataLinkedService": {
+								"referenceName": "ADLS_for_cust_data",
+								"type": "LinkedServiceReference"
+							}
+						}
+					],
+					"transformations": [
+						{
+							"name": "conditonalSplit"
+						},
+						{
+							"name": "derivedColumns"
+						},
+						{
+							"name": "lookupInSynapse"
+						},
+						{
+							"name": "alterRowForUpdate"
+						},
+						{
+							"name": "finalrecords"
+						}
+					],
+					"scriptLines": [
+						"source(output(",
+						"          check_out_date as date,",
+						"          customer_id as short,",
+						"          timestamp as timestamp,",
+						"          owner_id as string,",
+						"          check_in_date as date,",
+						"          property_id as string,",
+						"          amount as double,",
+						"          booking_id as string,",
+						"          currency as string,",
+						"          property_location as (city as string, country as string),",
+						"          booking_date as timestamp",
+						"     ),",
+						"     allowSchemaDrift: true,",
+						"     validateSchema: false,",
+						"     enableChangeFeed: true,",
+						"     changeFeedStartFromTheBeginning: false,",
+						"     format: 'document') ~> BookingData",
+						"source(output(",
+						"          booking_id as string,",
+						"          property_id as string,",
+						"          customer_id as integer,",
+						"          owner_id as string,",
+						"          check_in_date as date,",
+						"          check_out_date as date,",
+						"          booking_date as timestamp,",
+						"          amount as double,",
+						"          currency as string,",
+						"          city as string,",
+						"          country as string,",
+						"          full_address as string,",
+						"          stay_duration as long,",
+						"          booking_year as integer,",
+						"          booking_month as integer,",
+						"          timestamp as timestamp",
+						"     ),",
+						"     allowSchemaDrift: true,",
+						"     validateSchema: false,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     query: 'select * from airbnb.bookings_fact',",
+						"     format: 'query',",
+						"     staged: true) ~> SynapseForLookup",
+						"BookingData split(check_out_date<check_in_date,",
+						"     disjoint: false) ~> conditonalSplit@(BadRecords, AcceptedRecords)",
+						"conditonalSplit@AcceptedRecords derive(stay_duration = (toTimestamp(check_out_date)-toTimestamp(check_in_date))/86400000,",
+						"          booking_year = year(booking_date),",
+						"          booking_month = month(booking_date),",
+						"          full_address = concat( property_location.city, ' ', property_location.country),",
+						"          city = property_location.city,",
+						"          country = property_location.country,",
+						"          booking_id = booking_id,",
+						"          booking_date = booking_date,",
+						"          check_out_date = check_out_date,",
+						"          customer_id = customer_id,",
+						"          timestamp = timestamp,",
+						"          owner_id = owner_id,",
+						"          check_in_date = check_in_date,",
+						"          property_id = property_id,",
+						"          amount = amount,",
+						"          currency = currency) ~> derivedColumns",
+						"derivedColumns, SynapseForLookup lookup(derivedColumns@booking_id == SynapseForLookup@booking_id,",
+						"     multiple: false,",
+						"     pickup: 'first',",
+						"     desc(SynapseForLookup@timestamp, true),",
+						"     broadcast: 'auto')~> lookupInSynapse",
+						"lookupInSynapse alterRow(insertIf(isNull(SynapseForLookup@booking_id)),",
+						"     updateIf(not(isNull(SynapseForLookup@booking_id)))) ~> alterRowForUpdate",
+						"alterRowForUpdate select(mapColumn(",
+						"          check_out_date = derivedColumns@check_out_date,",
+						"          customer_id = derivedColumns@customer_id,",
+						"          timestamp = derivedColumns@timestamp,",
+						"          owner_id = derivedColumns@owner_id,",
+						"          check_in_date = derivedColumns@check_in_date,",
+						"          property_id = derivedColumns@property_id,",
+						"          amount = derivedColumns@amount,",
+						"          booking_id = derivedColumns@booking_id,",
+						"          currency = derivedColumns@currency,",
+						"          booking_date = derivedColumns@booking_date,",
+						"          stay_duration = derivedColumns@stay_duration,",
+						"          booking_year = derivedColumns@booking_year,",
+						"          booking_month = derivedColumns@booking_month,",
+						"          full_address = derivedColumns@full_address,",
+						"          city = derivedColumns@city,",
+						"          country = derivedColumns@country",
+						"     ),",
+						"     skipDuplicateMapInputs: true,",
+						"     skipDuplicateMapOutputs: true) ~> finalrecords",
+						"finalrecords sink(allowSchemaDrift: true,",
+						"     validateSchema: false,",
+						"     input(",
+						"          booking_id as string,",
+						"          property_id as string,",
+						"          customer_id as integer,",
+						"          owner_id as string,",
+						"          check_in_date as date,",
+						"          check_out_date as date,",
+						"          booking_date as timestamp,",
+						"          amount as double,",
+						"          currency as string,",
+						"          city as string,",
+						"          country as string,",
+						"          full_address as string,",
+						"          stay_duration as long,",
+						"          booking_year as integer,",
+						"          booking_month as integer,",
+						"          timestamp as timestamp",
+						"     ),",
+						"     deletable:false,",
+						"     insertable:true,",
+						"     updateable:true,",
+						"     upsertable:false,",
+						"     keys:['booking_id'],",
+						"     format: 'table',",
+						"     staged: true,",
+						"     allowCopyCommand: true,",
+						"     skipDuplicateMapInputs: true,",
+						"     skipDuplicateMapOutputs: true,",
+						"     errorHandlingOption: 'stopOnFirstError') ~> SynapseFactSink"
+					]
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/airBnB_CDC_data_from_CosmosDB')]",
+				"[concat(variables('factoryId'), '/datasets/AirBnb_fact_new')]",
+				"[concat(variables('factoryId'), '/datasets/AirBnB_cust_fact_Synapse')]",
+				"[concat(variables('factoryId'), '/linkedServices/ADLS_for_cust_data')]"
+			]
+		}
+	]
+}
