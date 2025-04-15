@@ -3,12 +3,21 @@
 	"properties": {
 		"activities": [
 			{
-				"name": "Wait",
+				"name": "conflict branch Wait activity 1",
 				"type": "Wait",
 				"dependsOn": [],
 				"userProperties": [],
 				"typeProperties": {
 					"waitTimeInSeconds": 2
+				}
+			},
+			{
+				"name": "conflict branch Wait activity 2",
+				"type": "Wait",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"waitTimeInSeconds": 3
 				}
 			}
 		],
