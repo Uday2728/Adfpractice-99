@@ -1,0 +1,16 @@
+{
+	"name": "fact_tbl_with_managed_auth",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "SynapseLinkedManagedIden",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "AzureSqlDWTable",
+		"schema": [],
+		"typeProperties": {
+			"schema": "airbnb",
+			"table": "bookings_fact"
+		}
+	}
+}

@@ -13,7 +13,7 @@
 				},
 				{
 					"dataset": {
-						"referenceName": "AirBnB_cust_fact_Synapse",
+						"referenceName": "fact_tbl_with_managed_auth",
 						"type": "DatasetReference"
 					},
 					"name": "SynapseForLookup"
